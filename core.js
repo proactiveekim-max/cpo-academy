@@ -86,6 +86,8 @@
       if (m) { cur = byId[m[1]] || null; continue; }
       const h = cur && line.match(/^(\d+)\. (.+)$/);
       if (h && cur.quiz[+h[1] - 1]) cur.quiz[+h[1] - 1].how = h[2].trim();
+      const g = cur && line.match(/^(\d+)! (.+)$/);           // "번호! 이 문제를 푸는 이유"
+      if (g && cur.quiz[+g[1] - 1]) cur.quiz[+g[1] - 1].goal = g[2].trim();
     }
   }
 
@@ -93,13 +95,27 @@
   function parseHowto(text) {
     const out = []; let cur = null;
     for (const line of text.split('\n')) {
-      if (line.startsWith('@ ')) { cur = { keys: line.slice(2).split('|').map(x => x.trim()).filter(Boolean), title: '', steps: [], note: '' }; out.push(cur); }
+      if (line.startsWith('@ ')) { cur = { keys: line.slice(2).split('|').map(x => x.trim()).filter(Boolean), title: '', steps: [], note: '', why: '', origin: '', gist: '' }; out.push(cur); }
       else if (!cur) continue;
       else if (line.startsWith('# ')) cur.title = line.slice(2).trim();
       else if (line.startsWith('- ')) cur.steps.push(line.slice(2).trim());
       else if (line.startsWith('> ')) cur.note = line.slice(2).trim();
+      else if (line.startsWith('? ')) cur.why = line.slice(2).trim();      // 왜 필요한가, 어떤 문제를 푸는가
+      else if (line.startsWith('^ ')) cur.origin = line.slice(2).trim();   // 어디서 나왔나
+      else if (line.startsWith('= ')) cur.gist = line.slice(2).trim();     // 쉬운 말 한 줄
     }
-    return out.filter(h => h.title && h.steps.length);
+    return out.filter(h => h.title && (h.steps.length || h.gist));
+  }
+
+  /* 용어 풀이: "한글 | 漢字 | 글자 풀이 | English | 영어 발음" → { 한글: {hanja, parts, en, say} } */
+  function parseTerms(text) {
+    const out = {};
+    for (const line of text.split('\n')) {
+      if (!line.trim() || line.startsWith('#')) continue;
+      const c = line.split('|').map(x => x.trim());
+      if (c.length >= 5 && c[0]) out[c[0]] = { hanja: c[1], parts: c[2], en: c[3], say: c[4] };
+    }
+    return out;
   }
 
   /* 용어 사전: "한글=English" 줄 목록 */
@@ -301,5 +317,5 @@
     };
   }
 
-  root.Core = { parseTrack, mergeExtras, mergeHows, parseHowto, parseGlossary, md, esc, inline, emptyState, canon, same, merge, schedule, dueIds, dayKey, streak, makeSync, unb64, importKey, unwrapKey, decryptBytes, gunzip, encText, decText, INTERVALS, DAY, FILE };
+  root.Core = { parseTrack, mergeExtras, mergeHows, parseHowto, parseTerms, parseGlossary, md, esc, inline, emptyState, canon, same, merge, schedule, dueIds, dayKey, streak, makeSync, unb64, importKey, unwrapKey, decryptBytes, gunzip, encText, decText, INTERVALS, DAY, FILE };
 })(typeof window !== 'undefined' ? window : globalThis);

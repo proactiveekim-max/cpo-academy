@@ -216,3 +216,15 @@ body.locked #side-body, body.locked #tabs { display: none; }
 .solved-why > summary { cursor: pointer; font-size: 14.5px; color: var(--muted); padding: 4px 0; }
 .solved-why[open] > summary { margin-bottom: 8px; }
 .quiz.is-solved .btns .ghost { margin: 0; padding: 6px 12px; font-size: 13.5px; }
+
+/* 문항 목적, 원리 카드, 방법론 배경, 용어 한자·발음 */
+.goal { margin: -2px 0 2px; font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+.goal b { margin-right: 6px; color: var(--tone); font-weight: 600; }
+.howto .gist { margin: 0 0 8px; font-weight: 600; }
+.howto .bg { margin: 8px 0 4px; }
+.howto .bg b { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+.howto.concept ul { margin: 6px 0; padding-left: 20px; }
+.howto.concept li { margin: 4px 0; }
+.ex dd .hanja { display: block; font-size: 13.5px; color: var(--muted); margin-bottom: 2px; }
+.howto .gist, .howto .bg { padding: 0 14px; }
+.howto.concept ul { padding: 0 14px 10px 32px; line-height: 1.65; }

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const C = window.Core;
-  const VERSION = '15';
+  const VERSION = '16';
   const GROUPS = [
     { name: '시작하기', tracks: ['start'] },
     { name: '우선 집중', tracks: ['ab', 'finance', 'econ', 'logic', 'decision'] },
@@ -27,7 +27,7 @@
 
   let tracks = {}, lessons = {}, quizzes = {}, flat = [];
   let publicTexts = {}, privTexts = store.get('cpo.priv', {});
-  let extraTexts = {}, howTexts = {}, glossary = [], defs = [], howtos = [];
+  let extraTexts = {}, howTexts = {}, glossary = [], defs = [], howtos = [], concepts = [], termInfo = {};
   /* 공개 콘텐츠와 비공개(Gist) 콘텐츠를 합쳐 커리큘럼을 구성 */
   function build() {
     tracks = {}; lessons = {}; quizzes = {}; flat = [];
@@ -196,7 +196,7 @@
   const TYPE_LABEL = { mc: '선택', num: '계산', text: '서술' };
   const isAdv = q => !!q.adv || q.type === 'text' || /^\[사례\]/.test(q.q);
   function quizHtml(q, n) {
-    const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>';
+    const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>' + (q.goal ? '<p class="goal"><b>왜 푸는가</b> ' + C.inline(q.goal) + '</p>' : '');
     if (q.type === 'num') {
       return '<div class="quiz" data-q="' + q.id + '" data-n="' + (n || '') + '">' + head +
         '<div class="btns"><input class="search num-in" type="text" inputmode="decimal" placeholder="숫자만 입력' + (q.unit ? ' (' + C.esc(q.unit) + ')' : '') + '" autocomplete="off"><button type="button" class="ghost num-go">확인</button></div><div class="why" hidden></div></div>';
@@ -216,7 +216,7 @@
   /* 레슨 화면: 이미 푼 문항은 푼 상태로 보여 준다 (답은 풀 때마다 저장된다) */
   function solvedHtml(q, n) {
     const s = state.quiz[q.id];
-    const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>';
+    const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>' + (q.goal ? '<p class="goal"><b>왜 푸는가</b> ' + C.inline(q.goal) + '</p>' : '');
     const label = q.type === 'text' ? (s.ok ? '요점을 다 담았다고 표시함' : '빠진 것이 있다고 표시함') : (s.ok ? '맞힌 문제' : '틀린 문제');
     let body = '';
     if (q.type === 'num') body = '<p class="solved-ans">정답: ' + q.ans.toLocaleString('ko-KR') + (q.unit ? ' ' + C.esc(q.unit) : '') + '</p>';
@@ -244,16 +244,18 @@
       if (out.length >= 6) break;
       if (rest.indexOf(ko) < 0) continue;
       rest = rest.split(ko).join(' ');
-      out.push('<dt>' + C.esc(ko) + (en[ko] ? ' <small>' + C.esc(en[ko]) + '</small>' : '') + '</dt><dd>' + C.inline(def) + '</dd>');
+      const ti = termInfo[ko];
+      out.push('<dt>' + C.esc(ko) + (ti ? ' <small>' + C.esc(ti.en) + (ti.say ? ' [' + C.esc(ti.say) + ']' : '') + '</small>' : (en[ko] ? ' <small>' + C.esc(en[ko]) + '</small>' : '')) + '</dt>' +
+        '<dd>' + (ti && ti.hanja ? '<span class="hanja">' + C.esc(ti.hanja) + (ti.parts ? ' · ' + C.esc(ti.parts) : '') + '</span>' : '') + C.inline(def) + '</dd>');
     }
     return out.join('');
   }
   /* 풀이에 나온 방법(무작위 배정, 이중차분 등)을 실무에서 어떻게 하는지 찾아 붙인다 */
-  function howtosFor(q) {
+  function cardsFor(list, q, max, concept) {
     const ans = q.type === 'mc' ? q.opts[q.ans] : '';
     const layers = [ans + ' ' + q.why, q.how || '', q.q];
     const found = [];
-    howtos.forEach((h, i) => {
+    list.forEach((h, i) => {
       let rank = -1, pos = 0;
       for (let r = 0; r < layers.length && rank < 0; r++) {
         for (const k of h.keys) { const at = layers[r].indexOf(k); if (at >= 0) { rank = r; pos = at; break; } }
@@ -261,22 +263,28 @@
       if (rank >= 0) found.push({ h, rank, pos, i });
     });
     found.sort((a, b) => a.rank - b.rank || a.pos - b.pos || a.i - b.i);
-    return found.slice(0, 2).map((f, n) =>
-      '<details class="howto"' + (n === 0 ? ' open' : '') + '><summary>' + C.esc(f.h.title) + '</summary><ol>' +
-      f.h.steps.map(x => '<li>' + C.inline(x) + '</li>').join('') + '</ol>' +
+    return found.slice(0, max).map((f, n) =>
+      '<details class="howto' + (concept ? ' concept' : '') + '"' + (n === 0 ? ' open' : '') + '><summary>' + C.esc(f.h.title) + '</summary>' +
+      (f.h.gist ? '<p class="gist">' + C.inline(f.h.gist) + '</p>' : '') +
+      (f.h.why ? '<p class="bg"><b>왜 필요한가</b>' + C.inline(f.h.why) + '</p>' : '') +
+      (f.h.origin ? '<p class="bg"><b>어디서 나왔나</b>' + C.inline(f.h.origin) + '</p>' : '') +
+      (f.h.steps.length ? (concept ? '<ul>' : '<p class="bg"><b>어떻게 하나</b></p><ol>') + f.h.steps.map(x => '<li>' + C.inline(x) + '</li>').join('') + (concept ? '</ul>' : '</ol>') : '') +
       (f.h.note ? '<p class="howto-note">' + C.inline(f.h.note) + '</p>' : '') + '</details>').join('');
   }
+  const howtosFor = q => cardsFor(howtos, q, 2, false);
+  const conceptsFor = q => cardsFor(concepts, q, 2, true);
   function explain(q) {
     const steps = s => s.split(' / ').map(x => '<li>' + C.inline(x) + '</li>').join('');
     const ans = q.type === 'mc' ? q.opts[q.ans] : '';
     const terms = termsIn([q.q, ans, q.why, q.how || ''].join(' '));
-    const practice = howtosFor(q);
+    const practice = howtosFor(q), basics = conceptsFor(q);
     return '<div class="ex">' +
       (q.type === 'text'
         ? '<h4>모범 답안의 요점</h4><ul>' + steps(q.why) + '</ul>'
         : '<h4>왜 이것이 답인가</h4><p>' + C.inline(q.why) + '</p>') +
       (q.how ? '<h4>' + (q.type === 'text' ? '답을 쓰는 순서' : '푸는 순서') + '</h4><ol>' + steps(q.how) + '</ol>' : '') +
-      (practice ? '<h4>실무에서는 이렇게 합니다</h4>' + practice : '') +
+      (basics ? '<h4>원리부터 이해하기</h4>' + basics : '') +
+      (practice ? '<h4>방법론: 왜 생겼고 어떻게 하나</h4>' + practice : '') +
       (terms ? '<h4>용어</h4><dl>' + terms + '</dl>' : '') + '</div>';
   }
   function bindQuiz(el, after) {
@@ -344,7 +352,7 @@
         if (src.slice(k + ko.length, k + ko.length + 2).match(/^\s?\(/)) { used.add(ko); continue; } // 이미 괄호 병기됨
         used.add(ko);
         const span = document.createElement('span'); span.className = 'term'; span.textContent = ko;
-        const sm = document.createElement('small'); sm.textContent = en; span.appendChild(sm);
+        const sm = document.createElement('small'); const ti = termInfo[ko]; sm.textContent = en + (ti && ti.say ? ' [' + ti.say + ']' : ''); if (ti && ti.hanja) span.title = ti.hanja + ' · ' + ti.parts; span.appendChild(sm);
         parts = (parts ? parts.slice(0, -1) : []).concat([src.slice(0, k), span, src.slice(k + ko.length)]);
       }
       if (parts) { const frag = document.createDocumentFragment(); parts.forEach(p => frag.appendChild(typeof p === 'string' ? document.createTextNode(p) : p)); node.parentNode.replaceChild(frag, node); }
@@ -638,6 +646,8 @@
       glossary = C.parseGlossary(await get('content/glossary.txt'));
       defs = C.parseGlossary(await get('content/defs.txt'));
       howtos = C.parseHowto(await get('content/howto.txt'));
+      concepts = C.parseHowto(await get('content/concepts.txt'));
+      termInfo = C.parseTerms(await get('content/terms.txt'));
       const hw = await Promise.all(HOW_TRACKS.map(s => get('content/h/' + s + '.md')));
       HOW_TRACKS.forEach((s, i) => { howTexts[s] = hw[i]; });
       build();
