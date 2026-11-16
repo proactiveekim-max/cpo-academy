@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const C = window.Core;
-  const VERSION = '14';
+  const VERSION = '15';
   const GROUPS = [
     { name: '시작하기', tracks: ['start'] },
     { name: '우선 집중', tracks: ['ab', 'finance', 'econ', 'logic', 'decision'] },
@@ -167,9 +167,9 @@
 
   /* ---------- 트랙 / 전체 ---------- */
   function lessonRow(l, showTrack) {
-    const d = state.done[l.id];
+    const d = state.done[l.id], sv = solvedIn(l);
     return '<a class="row' + (d ? ' done' : '') + '" ' + hue(l.track) + ' href="#l/' + l.id + '"><i class="check">' + (d ? '✓' : '') + '</i><div><strong>' + C.esc(l.title) + '</strong><span>' +
-      (showTrack ? C.esc(tracks[l.track].title) + ' · ' : '') + C.esc(l.summary) + '</span></div><em>' + l.min + '분</em></a>';
+      (showTrack ? C.esc(tracks[l.track].title) + ' · ' : '') + C.esc(l.summary) + '</span></div><em>' + (sv && !d ? '문제 ' + sv + '/' + l.quiz.length : l.min + '분') + '</em></a>';
   }
   function viewTrack(slug) {
     const t = tracks[slug]; if (!t) return viewHome();
@@ -198,20 +198,43 @@
   function quizHtml(q, n) {
     const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>';
     if (q.type === 'num') {
-      return '<div class="quiz" data-q="' + q.id + '">' + head +
+      return '<div class="quiz" data-q="' + q.id + '" data-n="' + (n || '') + '">' + head +
         '<div class="btns"><input class="search num-in" type="text" inputmode="decimal" placeholder="숫자만 입력' + (q.unit ? ' (' + C.esc(q.unit) + ')' : '') + '" autocomplete="off"><button type="button" class="ghost num-go">확인</button></div><div class="why" hidden></div></div>';
     }
     if (q.type === 'text') {
       const saved = state.notes['q:' + q.id] ? state.notes['q:' + q.id].t : '';
-      return '<div class="quiz" data-q="' + q.id + '">' + head +
+      return '<div class="quiz" data-q="' + q.id + '" data-n="' + (n || '') + '">' + head +
         '<textarea class="essay" rows="4" placeholder="먼저 직접 써 보세요. 쓴 뒤에 모범 답안과 비교합니다.">' + C.esc(saved) + '</textarea>' +
         '<div class="btns"><button type="button" class="ghost essay-show">모범 답안 보기</button></div>' +
         '<div class="why" hidden>' + explain(q) + '<div class="btns grade"><span class="muted">내 답은?</span><button type="button" class="ghost" data-g="1">요점을 다 담았다</button><button type="button" class="ghost" data-g="0">빠진 것이 있다</button></div></div></div>';
     }
     const order = q.opts.map((_, i) => i); if (!q.ox) order.sort(() => Math.random() - 0.5);
-    return '<div class="quiz" data-q="' + q.id + '">' + head +
+    return '<div class="quiz" data-q="' + q.id + '" data-n="' + (n || '') + '">' + head +
       order.map(i => '<button type="button" class="opt" data-i="' + i + '">' + C.inline(q.opts[i]) + '</button>').join('') +
       '<div class="why" hidden></div></div>';
+  }
+  /* 레슨 화면: 이미 푼 문항은 푼 상태로 보여 준다 (답은 풀 때마다 저장된다) */
+  function solvedHtml(q, n) {
+    const s = state.quiz[q.id];
+    const head = '<p class="q"><span class="qtype">' + (q.ox ? 'O·X' : TYPE_LABEL[q.type || 'mc']) + '</span><b>Q' + (n || '') + '.</b> ' + C.inline(q.q) + '</p>';
+    const label = q.type === 'text' ? (s.ok ? '요점을 다 담았다고 표시함' : '빠진 것이 있다고 표시함') : (s.ok ? '맞힌 문제' : '틀린 문제');
+    let body = '';
+    if (q.type === 'num') body = '<p class="solved-ans">정답: ' + q.ans.toLocaleString('ko-KR') + (q.unit ? ' ' + C.esc(q.unit) : '') + '</p>';
+    else if (q.type === 'text') { const saved = state.notes['q:' + q.id] ? state.notes['q:' + q.id].t : ''; body = saved ? '<p class="solved-ans">' + C.esc(saved).replace(/\n/g, '<br>') + '</p>' : ''; }
+    else body = q.opts.map((o, i) => '<button type="button" class="opt' + (i === q.ans ? ' right' : '') + '" disabled>' + C.inline(o) + '</button>').join('');
+    return '<div class="quiz is-solved" data-q="' + q.id + '" data-n="' + (n || '') + '" data-answered="1">' + head +
+      '<p class="solved-tag ' + (s.ok ? 'ok' : 'no') + '">' + label + ' · ' + C.dayKey(s.last) + '</p>' + body +
+      '<details class="solved-why"><summary>풀이 다시 보기</summary>' + explain(q) + '</details>' +
+      '<div class="btns"><button type="button" class="ghost retry">다시 풀기</button></div></div>';
+  }
+  const lessonQuiz = (q, n) => state.quiz[q.id] ? solvedHtml(q, n) : quizHtml(q, n);
+  const solvedIn = l => l.quiz.filter(q => state.quiz[q.id]).length;
+  function paintProgress(l) {
+    const el = $('#lesson-prog'); if (!el || el.dataset.l !== l.id) return;
+    const n = solvedIn(l), all = l.quiz.length;
+    el.innerHTML = '<span class="bar"><i style="width:' + pct(n, all) + '%"></i></span><span>문제 ' + n + ' / ' + all + ' 풂' + (n && n < all ? ' · 푼 문제는 저장되어 있습니다' : '') + '</span>' +
+      (n && n < all ? '<button type="button" class="ghost" id="resume">안 푼 문제로 이동</button>' : '');
+    const b = $('#resume'); if (b) b.onclick = () => { const x = main.querySelector('.quiz:not([data-answered])'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   }
   /* 풀이 패널: 왜 이것이 답인가, 푸는 순서, 용어 설명 */
   function termsIn(text) {
@@ -257,10 +280,11 @@
       (terms ? '<h4>용어</h4><dl>' + terms + '</dl>' : '') + '</div>';
   }
   function bindQuiz(el, after) {
-    const record = (q, ok, box) => { state.quiz[q.id] = C.schedule(state.quiz[q.id], ok, Date.now()); commit(); if (after) after(ok, box); };
+    const record = (q, ok, box) => { state.quiz[q.id] = C.schedule(state.quiz[q.id], ok, Date.now()); commit(); if (lessons[q.lesson]) paintProgress(lessons[q.lesson]); if (after) after(ok, box); };
     el.addEventListener('click', e => {
       const box = e.target.closest('.quiz'); if (!box) return;
       const q = quizzes[box.dataset.q]; if (!q) return;
+      if (e.target.closest('.retry')) { const tmp = document.createElement('div'); tmp.innerHTML = quizHtml(q, box.dataset.n); box.replaceWith(tmp.firstChild); return; }
       const why = $('.why', box);
       if (e.target.closest('.num-go')) {
         if (box.dataset.answered) return;
@@ -350,15 +374,16 @@
     const basic = l.quiz.filter(q => !isAdv(q)), adv = l.quiz.filter(isAdv);
     main.innerHTML = '<article class="lesson" ' + hue(l.track) + '>' +
       '<header class="page-head"><p class="eyebrow"><a href="#t/' + l.track + '">' + C.esc(t.title) + '</a> · ' + (idx + 1) + ' / ' + t.lessons.length + ' · ' + l.min + '분</p><h1>' + C.esc(l.title) + '</h1><p class="lede">' + C.esc(l.summary) + '</p>' +
-      '<p class="muted">기본 문제 ' + basic.length + '개 · 심화 문제 ' + adv.length + '개 · 실행 예시 ' + acts.length + '개</p></header>' +
+      '<p class="muted">기본 문제 ' + basic.length + '개 · 심화 문제 ' + adv.length + '개 · 실행 예시 ' + acts.length + '개</p><div id="lesson-prog" class="lesson-prog" data-l="' + l.id + '"></div></header>' +
       '<div class="prose">' + C.md(l.body) + '</div>' +
-      (basic.length ? '<section class="block"><h2>기본 문제 <span class="count">' + basic.length + '</span></h2><p class="muted">개념을 정확히 이해했는지 확인합니다. 답을 고르면 풀이가 나오고, 푼 문제는 복습 일정에 자동으로 들어갑니다.</p>' + basic.map((q, i) => quizHtml(q, i + 1)).join('') + '</section>' : '') +
-      (adv.length ? '<section class="block"><h2>심화 문제 <span class="count">' + adv.length + '</span></h2><p class="muted">실제 상황에 적용하는 사례, 계산, 서술 문제입니다. 서술 문제는 먼저 직접 쓴 뒤 풀이와 비교하세요.</p>' + adv.map((q, i) => quizHtml(q, i + 1)).join('') + '</section>' : '') +
+      (basic.length ? '<section class="block"><h2>기본 문제 <span class="count">' + basic.length + '</span></h2><p class="muted">개념을 정확히 이해했는지 확인합니다. 답을 고르면 풀이가 나오고, 푼 문제는 바로 저장되어 복습 일정에 들어갑니다. 중간에 나갔다 와도 푼 곳부터 이어서 풀 수 있습니다.</p>' + basic.map((q, i) => lessonQuiz(q, i + 1)).join('') + '</section>' : '') +
+      (adv.length ? '<section class="block"><h2>심화 문제 <span class="count">' + adv.length + '</span></h2><p class="muted">실제 상황에 적용하는 사례, 계산, 서술 문제입니다. 서술 문제는 먼저 직접 쓴 뒤 풀이와 비교하세요.</p>' + adv.map((q, i) => lessonQuiz(q, i + 1)).join('') + '</section>' : '') +
       (acts.length ? '<section class="block"><h2>실행 예시 <span class="count">' + acts.length + '</span></h2><p class="muted">읽은 것을 실제로 해 보는 구체적인 방법입니다. 하나를 골라 실행하고 결과를 기록하세요. 기록은 다른 기기에서도 보입니다.</p>' + acts.map((a, i) => actionHtml(a, i + 1)).join('') + '</section>' : '') +
       '<section class="block"><button type="button" class="ghost" id="copy">이 레슨으로 AI와 심화 토론할 프롬프트 복사</button><span id="copied" class="muted" hidden> 복사했습니다</span></section>' +
       '<footer class="lesson-foot"><button type="button" class="primary" id="done"></button>' +
       '<div class="pn">' + (prev ? '<a href="#l/' + prev.id + '">← ' + C.esc(prev.title) + '</a>' : '<span></span>') + (next ? '<a href="#l/' + next.id + '">' + C.esc(next.title) + ' →</a>' : '') + '</div></footer></article>';
     annotate($('.prose', main));
+    paintProgress(l);
     const btn = $('#done');
     const paint = () => { btn.textContent = state.done[id] ? '완료함 · 다시 표시 해제' : '학습 완료로 표시'; btn.classList.toggle('is-done', !!state.done[id]); };
     paint();

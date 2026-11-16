@@ -203,3 +203,16 @@ body.locked #side-body, body.locked #tabs { display: none; }
 .lock h1 { font-size: 22px; }
 .lock .search { margin-top: 4px; text-align: center; font-size: 16px; }
 .lock .primary { justify-self: stretch; }
+
+/* 이미 푼 문항과 레슨 진행 표시 */
+.lesson-prog { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+.lesson-prog .bar { flex: 0 0 140px; margin: 0; }
+.lesson-prog .ghost { margin: 0; padding: 6px 12px; font-size: 13.5px; }
+.quiz.is-solved { padding-left: 12px; border-left: 3px solid var(--line); }
+.solved-tag { margin: 0; font-size: 13.5px; font-weight: 600; }
+.solved-tag.ok { color: var(--good); }
+.solved-tag.no { color: var(--bad); }
+.solved-ans { margin: 0; padding: 10px 14px; background: var(--soft); border-radius: 10px; font-size: 15px; }
+.solved-why > summary { cursor: pointer; font-size: 14.5px; color: var(--muted); padding: 4px 0; }
+.solved-why[open] > summary { margin-bottom: 8px; }
+.quiz.is-solved .btns .ghost { margin: 0; padding: 6px 12px; font-size: 13.5px; }
