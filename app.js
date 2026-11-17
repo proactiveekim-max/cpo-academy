@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const C = window.Core;
-  const VERSION = '17';
+  const VERSION = '18';
   const GROUPS = [
     { name: '시작하기', tracks: ['start'] },
     { name: '우선 집중', tracks: ['ab', 'finance', 'econ', 'logic', 'decision'] },
@@ -12,7 +12,7 @@
     { name: '커리어', tracks: ['interview'] }
   ];
   const PUBLIC = GROUPS.flatMap(g => g.tracks);
-  const HOW_TRACKS = ['ab', 'finance', 'econ', 'logic', 'decision']; // content/h/<트랙>.md 가 있는 트랙
+  const HOW_TRACKS = ['ab', 'finance', 'econ', 'logic', 'decision', 'start', 'docs', 'metrics', 'order', 'tools', 'db', 'terms', 'data', 'growth', 'search', 'ads', 'zero', 'ai', 'ux', 'lead', 'pm', 'strategy', 'hbr', 'interview']; // content/h/<트랙>.md 가 있는 트랙
   const PRIVATE_GROUP = { name: '나의 커리어 · 비공개', tracks: [] };
   GROUPS.unshift(PRIVATE_GROUP);
   const HUES = { ab: 222, finance: 158, econ: 28, logic: 262, decision: 344, data: 196, growth: 96, search: 210, ads: 12, zero: 46, ai: 280, ux: 322, lead: 176, pm: 240, strategy: 60, hbr: 4, docs: 250, metrics: 140, order: 20, tools: 190, db: 300, terms: 80, start: 226, interview: 330 };
@@ -246,7 +246,7 @@
       rest = rest.split(ko).join(' ');
       const ti = termInfo[ko];
       out.push('<dt>' + C.esc(ko) + (ti ? ' <small>' + C.esc(ti.en) + (ti.say ? ' [' + C.esc(ti.say) + ']' : '') + '</small>' : (en[ko] ? ' <small>' + C.esc(en[ko]) + '</small>' : '')) + '</dt>' +
-        '<dd>' + (ti && ti.hanja ? '<span class="hanja">' + C.esc(ti.hanja) + (ti.parts ? ' · ' + C.esc(ti.parts) : '') + '</span>' : '') + C.inline(def) + '</dd>');
+        '<dd>' + (ti && (ti.hanja || ti.parts) ? '<span class="hanja">' + C.esc([ti.hanja, ti.parts].filter(Boolean).join(' · ')) + '</span>' : '') + C.inline(def) + '</dd>');
     }
     return out.join('');
   }

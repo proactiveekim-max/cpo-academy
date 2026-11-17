@@ -97,7 +97,7 @@
     for (const line of text.split('\n')) {
       if (line.startsWith('@ ')) { cur = { keys: line.slice(2).split('|').map(x => x.trim()).filter(Boolean), title: '', steps: [], note: '', why: '', origin: '', gist: '' }; out.push(cur); }
       else if (!cur) continue;
-      else if (line.startsWith('# ')) cur.title = line.slice(2).trim();
+      else if (line.startsWith('# ')) { if (!cur.title) cur.title = line.slice(2).trim(); } // 구역 머리줄(# ----)이 앞 카드의 제목을 덮지 않게
       else if (line.startsWith('- ')) cur.steps.push(line.slice(2).trim());
       else if (line.startsWith('> ')) cur.note = line.slice(2).trim();
       else if (line.startsWith('? ')) cur.why = line.slice(2).trim();      // 왜 필요한가, 어떤 문제를 푸는가
