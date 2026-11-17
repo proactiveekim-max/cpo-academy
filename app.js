@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const C = window.Core;
-  const VERSION = '20';
+  const VERSION = '21';
   const GROUPS = [
     { name: '시작하기', tracks: ['start'] },
     { name: '우선 집중', tracks: ['ab', 'finance', 'econ', 'logic', 'decision'] },
@@ -28,6 +28,7 @@
   let tracks = {}, lessons = {}, quizzes = {}, flat = [];
   let publicTexts = {}, privTexts = store.get('cpo.priv', {});
   let extraTexts = {}, howTexts = {}, glossary = [], defs = [], howtos = [], concepts = [], termInfo = {};
+  let opps = { updated: '', summary: [], items: [] }, plan = { months: [] }; // 기회 보드(주간 모니터링이 갱신)와 12개월 계획
   /* 공개 콘텐츠와 비공개(Gist) 콘텐츠를 합쳐 커리큘럼을 구성 */
   function build() {
     tracks = {}; lessons = {}; quizzes = {}; flat = [];
@@ -117,6 +118,7 @@
       '<div class="side-prog"><div class="bar"><i style="width:' + pct(done, total) + '%"></i></div><span>' + done + ' / ' + total + ' 레슨</span></div>' +
       '<a class="nav' + (cur === '' ? ' on' : '') + '" href="#">홈</a>' +
       '<a class="nav' + (cur === 'review' ? ' on' : '') + '" href="#review">복습' + (due ? '<b class="badge">' + due + '</b>' : '') + '</a>' +
+      '<a class="nav' + (cur.startsWith('opps') ? ' on' : '') + '" href="#opps">기회 보드' + (soonCount() ? '<b class="badge">' + soonCount() + '</b>' : '') + '</a>' +
       '<a class="nav' + (cur === 'all' ? ' on' : '') + '" href="#all">전체 검색</a>' +
       '<a class="nav' + (cur === 'settings' ? ' on' : '') + '" href="#settings">설정과 동기화</a>' +
       GROUPS.filter(g => g.tracks.some(s => tracks[s])).map(g => '<div class="grp">' + g.name + '</div>' + g.tracks.filter(s => tracks[s]).map(s => {
@@ -126,7 +128,7 @@
       '<div class="side-sync">' + syncLine() + '</div>';
     $('#tabs').innerHTML =
       tab('', '홈', cur === '') + tab('all', '커리큘럼', cur === 'all' || cur.startsWith('t/') || cur.startsWith('l/')) +
-      tab('review', '복습' + (due ? ' ' + due : ''), cur === 'review') + tab('settings', '설정', cur === 'settings');
+      tab('opps', '기회' + (soonCount() ? ' ' + soonCount() : ''), cur.startsWith('opps')) + tab('review', '복습' + (due ? ' ' + due : ''), cur === 'review') + tab('settings', '설정', cur === 'settings');
   }
   function tab(h, label, on) { return '<a href="#' + h + '"' + (on ? ' class="on"' : '') + '>' + label + '</a>'; }
 
@@ -145,6 +147,7 @@
     }
     main.innerHTML =
       '<header class="page-head"><p class="eyebrow">CPO Academy</p><h1>시니어 PM에서 CPO까지, 판단의 근거를 쌓는 과정</h1></header>' +
+      growthHome() +
       '<section class="stats">' +
       stat(pct(done, total) + '%', '전체 진도', done + ' / ' + total + ' 레슨') +
       stat(C.streak(state, now) + '일', '연속 학습', '최근 14일<span class="strip">' + strip + '</span>') +
@@ -176,6 +179,7 @@
     const d = doneIn(slug);
     main.innerHTML = '<header class="page-head" ' + hue(slug) + '><p class="eyebrow"><a href="#">홈</a> / 트랙</p><h1>' + C.esc(t.title) + '</h1><p class="lede">' + C.esc(t.desc) + '</p>' +
       '<div class="bar wide"><i style="width:' + pct(d, t.lessons.length) + '%"></i></div><small class="muted">' + d + ' / ' + t.lessons.length + ' 레슨 완료</small></header>' +
+      (slug === 'grow' ? oppBanner() : '') +
       '<div class="rows">' + t.lessons.map(l => lessonRow(l)).join('') + '</div>';
   }
   function viewAll() {
@@ -577,6 +581,138 @@
     on('reset-yes', () => { state = C.emptyState(); state.resetAt = Date.now(); commit(false); viewSettings(); });
   }
 
+  /* ---------- 성장 로드맵과 기회 보드 ----------
+     content/opps.json 은 매주 모니터링 작업이 갱신한다. 공고마다 내 진행 상태(state.opp)를 기록하고 기기 간 동기화한다. */
+  const OPP_STATUS = [['want', '관심'], ['prep', '준비 중'], ['applied', '신청 완료'], ['done', '참가·제출 완료'], ['skip', '패스']];
+  const OPP_SECTION = { now: '지금 신청할 것', soon: '곧 열릴 것', changed: '변경된 것', ref: '참고만' };
+  const OPP_PREP = {
+    '해커톤': ['규정·참가 자격·지식재산 조항 확인', '회사 외부 활동 규정 확인', '마감을 한국 시간으로 캘린더에 등록', '영어 자기소개 준비(업무 영어 eng-02)', '팀 매칭 채널 가입 또는 팀 합류', '문제를 한 문장으로 정의', '데모 흐름 하나로 범위 자르기', '데모 영상과 프로젝트 페이지 제출'],
+    '아이디어 대회': ['참가 자격 확인', '제출 양식과 심사 기준 확인', '회사 외부 활동 규정 확인', '문제 정의와 아이디어 한 장', '근거 데이터와 효과 숫자 정리', '제출'],
+    '데이터 대회': ['참가 자격과 팀 규칙 확인', '데이터와 평가 방식 훑어보기', '분석 질문 하나 정하기', '노트북 초안', '보고서 작성', '제출'],
+    '교육': ['일정과 가격 확인', '회사 교육비 지원 확인', '수업 시간을 캘린더에 등록', '등록·결제', '첫 수업 전 핵심 용어 10개 확인', '수강하며 커뮤니티에 한 번 답하기'],
+    '인증': ['응시 조건과 언어 확인', '4주 공부 계획', '모의 시험 100%', '응시'],
+    '학회': ['일정·등록비 확인', '관심 발표 세 개 고르기', '등록', '발표 자료 읽고 적용 아이디어 하나'],
+    '멘토': ['모집 조건 확인', '경력 요약 준비', '지원']
+  };
+  const DAY_MS = 86400000;
+  const oppSt = id => (state.opp && state.opp[id]) || { s: '', c: [], ts: 0 };
+  function oppDue(it) { const t = it.deadline ? Date.parse(it.deadline) : NaN; return isNaN(t) ? null : t; }
+  function dday(t) {
+    const d = Math.ceil((t - Date.now()) / DAY_MS);
+    return d < 0 ? '마감' : d === 0 ? 'D-day' : 'D-' + d;
+  }
+  const activeOpp = it => { const st = oppSt(it.id).s; const t = oppDue(it); return st !== 'skip' && st !== 'done' && !(t && t < Date.now()); };
+  function soonCount() { return opps.items.filter(it => { const t = oppDue(it); return activeOpp(it) && t && t - Date.now() < 7 * DAY_MS && it.section !== 'ref'; }).length; }
+  const safeUrl = u => /^https:\/\/[^\s"'<>]+$/.test(u || '') ? u : '';
+  function calLink(it) {
+    const t = oppDue(it); if (!t) return '';
+    const f = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const st = t - DAY_MS;
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('[마감 D-1] ' + it.name) + '&dates=' + f(st) + '/' + f(st + 30 * 60000) +
+      '&details=' + encodeURIComponent((it.deadlineText || '') + '\n' + (safeUrl(it.url) || ''));
+  }
+  function monthItems() {
+    const k = new Date().toISOString().slice(0, 7);
+    const m = plan.months.find(x => x.m === k) || plan.months.find(x => x.m > k);
+    return m ? { label: +m.m.slice(5) + '월', items: m.items } : null;
+  }
+  function trackMini(s, label) {
+    const t = tracks[s]; if (!t) return '';
+    const d = doneIn(s), n = t.lessons.length, nx = t.lessons.find(l => !state.done[l.id]);
+    return '<a class="gcard" ' + hue(s) + ' href="#' + (nx ? 'l/' + nx.id : 't/' + s) + '"><span class="eyebrow">' + label + '</span><strong>' + C.esc(nx ? nx.title : t.title) + '</strong>' +
+      '<div class="bar"><i style="width:' + pct(d, n) + '%"></i></div><small>' + d + ' / ' + n + ' 레슨' + (nx ? ' · 이어서 학습' : ' · 완료') + '</small></a>';
+  }
+  function upcoming(n) {
+    return opps.items.filter(it => activeOpp(it) && oppDue(it) && it.section !== 'ref').sort((a, b) => oppDue(a) - oppDue(b)).slice(0, n);
+  }
+  function growthHome() {
+    if (!tracks.grow && !opps.items.length) return '';
+    const mi = monthItems(), up = upcoming(3);
+    const mine = opps.items.filter(it => ['prep', 'applied'].includes(oppSt(it.id).s)).length;
+    const fresh = opps.items.filter(it => it.isNew && !oppSt(it.id).s).length;
+    return '<section class="growth">' +
+      '<div class="ghead"><h2>내 성장</h2><a href="#t/grow">성장 로드맵 →</a></div>' +
+      '<div class="ggrid">' + trackMini('grow', '성장 로드맵') + trackMini('eng', '업무 영어') +
+      (mi ? '<div class="gcard plain"><span class="eyebrow">' + mi.label + ' 할 일 · 12개월 계획</span><ul>' + mi.items.map(x => '<li>' + C.esc(x) + '</li>').join('') + '</ul><a class="more" href="#l/grow-06">계획 전체 보기</a></div>' : '') +
+      '</div>' +
+      '<a class="oppbox" href="#opps"><div class="ohead"><strong>기회 보드</strong><span class="muted">' + (opps.updated ? C.esc(opps.updated) + ' 갱신 · 매주 월요일 업데이트' : '아직 갱신 전') + '</span></div>' +
+      '<div class="ostat">' + (fresh ? '<b>새 공고 ' + fresh + '건</b>' : '') + (mine ? '<b>진행 중 ' + mine + '건</b>' : '') + (soonCount() ? '<b class="hot">7일 안에 마감 ' + soonCount() + '건</b>' : '') + '</div>' +
+      (up.length ? '<ul class="olist">' + up.map(it => { const st = oppSt(it.id).s; return '<li><em class="dd">' + dday(oppDue(it)) + '</em><span>' + C.esc(it.name) + '</span>' + (st ? '<i class="ost s-' + st + '">' + OPP_STATUS.find(x => x[0] === st)[1] + '</i>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="muted">다가오는 마감이 없습니다.</p>') +
+      '</a></section>';
+  }
+  function oppBanner() {
+    return '<a class="oppbox slim" href="#opps"><div class="ohead"><strong>기회 보드</strong><span class="muted">' + (opps.updated ? C.esc(opps.updated) + ' 갱신' : '') + ' · 매주 월요일 공고를 확인해 갱신합니다</span></div>' +
+      '<div class="ostat">' + (soonCount() ? '<b class="hot">7일 안에 마감 ' + soonCount() + '건</b>' : '') + '<b>공고 ' + opps.items.length + '건 보기 →</b></div></a>';
+  }
+  function oppCard(it) {
+    const o = oppSt(it.id), t = oppDue(it), url = safeUrl(it.url), cal = calLink(it);
+    const steps = OPP_PREP[it.kind] || [];
+    const done = new Set(o.c || []);
+    const note = state.notes['o:' + it.id] ? state.notes['o:' + it.id].t : '';
+    const past = t && t < Date.now();
+    return '<article class="opp' + (o.s ? ' has-' + o.s : '') + (past ? ' past' : '') + '" data-o="' + C.esc(it.id) + '">' +
+      '<div class="otop">' + (t ? '<em class="dd' + (t - Date.now() < 7 * DAY_MS && !past ? ' hot' : '') + '">' + dday(t) + '</em>' : '') +
+      '<span class="kind">' + C.esc(it.kind || '') + '</span>' + (it.isNew ? '<span class="new">새로</span>' : '') + '</div>' +
+      '<h3>' + C.esc(it.name) + '</h3>' +
+      (it.desc ? '<p>' + C.esc(it.desc) + '</p>' : '') +
+      '<dl class="ometa">' +
+      (it.deadlineText ? '<dt>마감</dt><dd>' + C.esc(it.deadlineText) + '</dd>' : '') +
+      (it.cost ? '<dt>비용</dt><dd>' + C.esc(it.cost) + '</dd>' : '') +
+      (it.solo ? '<dt>혼자/팀</dt><dd>' + C.esc(it.solo) + '</dd>' : '') +
+      (it.english ? '<dt>영어 부담</dt><dd>' + C.esc(it.english) + '</dd>' : '') +
+      (it.why ? '<dt>왜 적합한가</dt><dd>' + C.esc(it.why) + '</dd>' : '') +
+      (it.check ? '<dt>확인할 것</dt><dd>' + C.esc(it.check) + '</dd>' : '') +
+      '</dl>' +
+      '<div class="olinks">' + (url ? '<a href="' + C.esc(url) + '" target="_blank" rel="noopener noreferrer">공고 열기 ↗</a>' : '') + (cal && !past ? '<a href="' + C.esc(cal) + '" target="_blank" rel="noopener noreferrer">마감 하루 전 캘린더에 추가 ↗</a>' : '') + '</div>' +
+      '<div class="ostatus" role="group" aria-label="내 진행 상태">' + OPP_STATUS.map(([k, l]) => '<button type="button" class="ob' + (o.s === k ? ' on' : '') + '" data-s="' + k + '">' + l + '</button>').join('') + '</div>' +
+      (steps.length && ['want', 'prep', 'applied'].includes(o.s) ? '<div class="oprep"><b>준비 체크리스트</b>' + steps.map((x, i) => '<label><input type="checkbox" class="oc" data-i="' + i + '"' + (done.has(i) ? ' checked' : '') + '> ' + C.esc(x) + '</label>').join('') +
+        '<small class="muted">' + done.size + ' / ' + steps.length + ' 완료</small></div>' : '') +
+      (o.s ? '<textarea class="onote" rows="2" placeholder="메모: 팀원, 아이디어, 결과, 배운 것">' + C.esc(note) + '</textarea>' : '') +
+      '</article>';
+  }
+  function viewOpps(filter) {
+    filter = filter || 'all';
+    const F = [['all', '전체'], ['mine', '내가 진행 중'], ['now', '지금 신청'], ['soon', '곧 열림'], ['changed', '변경'], ['ref', '참고'], ['past', '지난 공고']];
+    const pick = it => {
+      const t = oppDue(it), past = t && t < Date.now(), st = oppSt(it.id).s;
+      if (filter === 'past') return past;
+      if (filter === 'mine') return ['want', 'prep', 'applied', 'done'].includes(st);
+      if (past && !['applied', 'done'].includes(st)) return false;
+      if (filter === 'all') return st !== 'skip';
+      return it.section === filter;
+    };
+    const list = opps.items.filter(pick).sort((a, b) => (oppDue(a) || 9e15) - (oppDue(b) || 9e15));
+    const sections = filter === 'all' ? Object.keys(OPP_SECTION) : [null];
+    main.innerHTML = '<header class="page-head" ' + hue('grow') + '><p class="eyebrow"><a href="#t/grow">성장 로드맵</a> / 기회 보드</p><h1>기회 보드</h1>' +
+      '<p class="lede">매주 월요일 해커톤, 데이터 대회, 교육·인증, 학회, 멘토 공고를 확인해 나에게 맞는 것만 모읍니다. 공고마다 진행 상태를 고르면 준비 체크리스트가 열리고, 기록은 다른 기기와 동기화됩니다.</p>' +
+      '<p class="muted">' + (opps.updated ? '마지막 갱신 ' + C.esc(opps.updated) : '아직 갱신 전') + '</p>' +
+      (opps.summary && opps.summary.length ? '<ul class="osum">' + opps.summary.map(x => '<li>' + C.esc(x) + '</li>').join('') + '</ul>' : '') +
+      '<nav class="ofilter">' + F.map(([k, l]) => '<a href="#opps/' + k + '"' + (k === filter ? ' class="on"' : '') + '>' + l + '</a>').join('') + '</nav></header>' +
+      (list.length ? sections.map(sec => {
+        const xs = sec ? list.filter(it => it.section === sec) : list;
+        return xs.length ? (sec ? '<h2 class="sec">' + OPP_SECTION[sec] + '</h2>' : '') + '<div class="ogrid">' + xs.map(oppCard).join('') + '</div>' : '';
+      }).join('') : '<p class="empty">해당하는 공고가 없습니다.</p>');
+    let nt;
+    main.onclick = e => {
+      const b = e.target.closest('.ob'); if (!b) return;
+      const id = b.closest('.opp').dataset.o, cur = oppSt(id);
+      const s = cur.s === b.dataset.s ? '' : b.dataset.s;
+      state.opp[id] = { s, c: cur.c || [], ts: Date.now() }; commit(false); viewOpps(filter);
+    };
+    main.onchange = e => {
+      const c = e.target.closest('.oc'); if (!c) return;
+      const id = c.closest('.opp').dataset.o, cur = oppSt(id), set = new Set(cur.c || []), i = +c.dataset.i;
+      c.checked ? set.add(i) : set.delete(i);
+      state.opp[id] = { s: cur.s, c: [...set].sort((x, y) => x - y), ts: Date.now() }; commit(false);
+      const sm = c.closest('.oprep').querySelector('small'); if (sm) sm.textContent = set.size + ' / ' + c.closest('.oprep').querySelectorAll('.oc').length + ' 완료';
+    };
+    main.oninput = e => {
+      const t = e.target.closest('.onote'); if (!t) return;
+      const id = 'o:' + t.closest('.opp').dataset.o, v = t.value;
+      clearTimeout(nt); nt = setTimeout(() => { state.notes[id] = { t: v, ts: Date.now() }; commit(false); }, 800);
+    };
+  }
+
   /* ---------- 라우터 ---------- */
   function route() {
     const h = location.hash.slice(1);
@@ -584,6 +720,7 @@
     if (h.startsWith('l/')) viewLesson(h.slice(2));
     else if (h.startsWith('t/')) viewTrack(h.slice(2));
     else if (h === 'all') viewAll();
+    else if (h === 'opps' || h.startsWith('opps/')) viewOpps(h.slice(5));
     else if (h === 'review') { viewReview(); }
     else if (h === 'settings') viewSettings();
     else viewHome();
@@ -648,6 +785,8 @@
       howtos = C.parseHowto(await get('content/howto.txt'));
       concepts = C.parseHowto(await get('content/concepts.txt'));
       termInfo = C.parseTerms(await get('content/terms.txt'));
+      try { const o = JSON.parse(await get('content/opps.json') || '{}'); if (Array.isArray(o.items)) opps = o; } catch (e) { }
+      try { const pl = JSON.parse(await get('content/plan.json') || '{}'); if (Array.isArray(pl.months)) plan = pl; } catch (e) { }
       const hw = await Promise.all(HOW_TRACKS.map(s => get('content/h/' + s + '.md')));
       HOW_TRACKS.forEach((s, i) => { howTexts[s] = hw[i]; });
       build();

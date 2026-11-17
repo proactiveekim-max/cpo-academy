@@ -173,7 +173,7 @@
   }
 
   /* ---------- 상태 ---------- */
-  function emptyState() { return { v: 1, resetAt: 0, done: {}, quiz: {}, notes: {}, mission: {}, days: {} }; }
+  function emptyState() { return { v: 1, resetAt: 0, done: {}, quiz: {}, notes: {}, mission: {}, days: {}, opp: {} }; }
 
   function canon(x) {
     if (Array.isArray(x)) return x.map(canon);
@@ -205,6 +205,11 @@
       const x = a.notes[k], y = b.notes[k];
       const w = !x ? y : !y ? x : (y.ts > x.ts ? y : x);
       if (w && w.ts > resetAt) out.notes[k] = w;
+    }
+    for (const k of keys(a.opp, b.opp)) {              // 기회 보드 진행 상태: 마지막 수정본
+      const x = a.opp[k], y = b.opp[k];
+      const w = !x ? y : !y ? x : (y.ts > x.ts ? y : x);
+      if (w && w.ts > resetAt) out.opp[k] = w;
     }
     for (const k of keys(a.days, b.days)) {            // 일별 활동량: 큰 값
       const day = Date.parse(k + 'T23:59:59');
