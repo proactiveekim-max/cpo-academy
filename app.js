@@ -2,20 +2,20 @@
 (function () {
   'use strict';
   const C = window.Core;
-  const VERSION = '19';
+  const VERSION = '20';
   const GROUPS = [
     { name: '시작하기', tracks: ['start'] },
     { name: '우선 집중', tracks: ['ab', 'finance', 'econ', 'logic', 'decision'] },
     { name: '실무 문서 · 지표 · 도구', tracks: ['docs', 'metrics', 'order', 'tools', 'db', 'terms'] },
     { name: '전문 영역', tracks: ['data', 'growth', 'search', 'ads', 'zero', 'ai', 'ux'] },
     { name: '리더십과 운영', tracks: ['lead', 'pm', 'strategy', 'hbr'] },
-    { name: '커리어', tracks: ['interview'] }
+    { name: '커리어', tracks: ['interview', 'grow', 'eng'] }
   ];
   const PUBLIC = GROUPS.flatMap(g => g.tracks);
-  const HOW_TRACKS = ['ab', 'finance', 'econ', 'logic', 'decision', 'start', 'docs', 'metrics', 'order', 'tools', 'db', 'terms', 'data', 'growth', 'search', 'ads', 'zero', 'ai', 'ux', 'lead', 'pm', 'strategy', 'hbr', 'interview']; // content/h/<트랙>.md 가 있는 트랙
+  const HOW_TRACKS = ['ab', 'finance', 'econ', 'logic', 'decision', 'start', 'docs', 'metrics', 'order', 'tools', 'db', 'terms', 'data', 'growth', 'search', 'ads', 'zero', 'ai', 'ux', 'lead', 'pm', 'strategy', 'hbr', 'interview', 'grow', 'eng']; // content/h/<트랙>.md 가 있는 트랙
   const PRIVATE_GROUP = { name: '나의 커리어 · 비공개', tracks: [] };
   GROUPS.unshift(PRIVATE_GROUP);
-  const HUES = { ab: 222, finance: 158, econ: 28, logic: 262, decision: 344, data: 196, growth: 96, search: 210, ads: 12, zero: 46, ai: 280, ux: 322, lead: 176, pm: 240, strategy: 60, hbr: 4, docs: 250, metrics: 140, order: 20, tools: 190, db: 300, terms: 80, start: 226, interview: 330 };
+  const HUES = { ab: 222, finance: 158, econ: 28, logic: 262, decision: 344, data: 196, growth: 96, search: 210, ads: 12, zero: 46, ai: 280, ux: 322, lead: 176, pm: 240, strategy: 60, hbr: 4, docs: 250, metrics: 140, order: 20, tools: 190, db: 300, terms: 80, start: 226, interview: 330, grow: 110, eng: 200 };
 
   const $ = (s, el) => (el || document).querySelector(s);
   const main = $('#main');
